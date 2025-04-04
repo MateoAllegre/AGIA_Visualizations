@@ -14,7 +14,7 @@ var createScene = function () {
     var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
 	//var sphere = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter: 100}, scene);
         
-	BABYLON.ImportMeshAsync("./fountain.glb", scene).then(function (result) {
+	BABYLON.ImportMeshAsync("https://babylontest.netlify.app/fountain.glb", scene).then(function (result) {
         //result.meshes[0].scaling = new BABYLON.Vector3(2,2,2);
 		//result.meshes[0].position = new BABYLON.Vector3(0.5,-1.5,2);
     });
