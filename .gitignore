@@ -1,6 +1,9 @@
+# 3D models and highres textures (because LFS bandwidth is limited)
 *.obj
 *.mtl
-blenderMesh.glb
-babylon.d.ts
-mesh.gltf
+*.glb
+*.gltf
 *.exr
+
+# Declaration files for Babylon
+*.d.ts
