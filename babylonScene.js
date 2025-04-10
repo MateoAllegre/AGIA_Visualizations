@@ -22,34 +22,35 @@ var createScene = function () {
 
 	// UI Base
 	var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
-	// advancedTexture.renderScale = 3;
-	// advancedTexture.rootContainer.scaleX = advancedTexture.rootContainer.scaleY = advancedTexture.renderScale;
 
 	var fountainMesh = null;
 
 	// Fountain button
 	var fountainButton = BABYLON.GUI.Button.CreateSimpleButton("loadFountain", "Fontaine");
-	fountainButton.width = "6%";
-	fountainButton.height = "4%";
-	fountainButton.fontSize = 20;
-	//fountainButton.fontSizeInPixels *= advancedTexture.renderScale;
+	fountainButton.width = "150px";
+	fountainButton.height = "50px";
 	fountainButton.background = "red";
 	fountainButton.color = "darkred";
 	fountainButton.cornerRadius = 3;
-	// fountainButton.cornerRadius *= advancedTexture.renderScale;
 	fountainButton.thickness = 3;
-	// fountainButton.thickness *= advancedTexture.renderScale;
 	fountainButton.onPointerUpObservable.add(() => {
-		console.time("Chargement du modele");
-		console.log("Debut du chargement du modele");
 		fountainButton.isVisible = false;
-		menuButton.isVisible = true;
-		BABYLON.ImportMeshAsync("./fountain.glb", scene).then(function (result) {
-		    //result.meshes[0].scaling = new BABYLON.Vector3(2,2,2);
-			//result.meshes[0].position = new BABYLON.Vector3(0.5,-1.5,2);
-			fountainMesh = result.meshes[0];
-			console.timeEnd("Chargement du modele");
-		});
+		if(fountainMesh != null) {
+			fountainMesh.enabled = true;
+			menuButton.isVisible = true;
+		} else {
+			console.time("Chargement du modele");
+			console.log("Debut du chargement du modele");
+			engine.displayLoadingUI();
+			BABYLON.ImportMeshAsync("./cube.glb", scene).then(function (result) {
+				//result.meshes[0].scaling = new BABYLON.Vector3(2,2,2);
+				//result.meshes[0].position = new BABYLON.Vector3(0.5,-1.5,2);
+				fountainMesh = result.meshes[0];
+				console.timeEnd("Chargement du modele");
+				engine.hideLoadingUI();
+				menuButton.isVisible = true;
+			});
+		}
 	});
 	advancedTexture.addControl(fountainButton);
 
@@ -68,7 +69,7 @@ var createScene = function () {
 	menuButton.onPointerUpObservable.add(() => {
 		fountainButton.isVisible = true;
 		menuButton.isVisible = false;
-		fountainMesh.dispose(); // inaccessible
+		if(fountainMesh != null) fountainMesh.enabled = false;
 	});
 	advancedTexture.addControl(menuButton);
 	menuButton.isVisible = false;

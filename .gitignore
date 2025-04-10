@@ -5,5 +5,7 @@
 *.gltf
 *.exr
 
+!cube.glb
+
 # Declaration files for Babylon
 *.d.ts
