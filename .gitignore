@@ -4,8 +4,15 @@
 *.glb
 *.gltf
 *.exr
+*.ply
+*.splat
 
 !cube.glb
 
 # Declaration files for Babylon
 *.d.ts
+
+# Archives
+*.7z
+*.zip
+*.gz

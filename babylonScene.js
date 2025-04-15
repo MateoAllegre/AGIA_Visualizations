@@ -103,13 +103,17 @@ var createScene = function () {
 	advancedTexture.addControl(buttonPanel); // add to UI
 
 	// Creation of the buttons for each fountain mesh
-	createMeshButton("Fountain", "./fountain.glb");
-	createMeshButton("Fountain Light", "./fountainLight.glb");
-	createMeshButton("Fountain Downscaled", "./fountainDownscaled.glb");
-	createMeshButton("Fountain Minimal", "./fountainLightDownscaled.glb");
+	//createMeshButton("Fountain", "./fountain.glb");
+	//createMeshButton("Fountain Light", "./fountainLight.glb");
+	//createMeshButton("Fountain Downscaled", "./fountainDownscaled.glb");
+	//createMeshButton("Fountain Minimal", "./fountainLightDownscaled.glb");
+	createMeshButton("Monstree GS Original", "./monstree.ply");
+	createMeshButton("Monstree GS Clean", "./monstree_cleaned.ply");
+	createMeshButton("Monstree GS Compressed", "./monstree_cleaned_compressed.ply");
+	createMeshButton("Monstree GS .splat", "./monstree.splat");
 
 	// For Monstree, move the mesh after load, because it is not centered
-	createMeshButton("Monstree", "./monstree.glb", (mesh) => {
+	createMeshButton("Monstree Mesh", "./monstree.glb", (mesh) => {
 		mesh.position = new BABYLON.Vector3(0.5,-1.5,2);
 	});
 
