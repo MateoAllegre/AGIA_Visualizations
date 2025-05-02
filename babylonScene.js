@@ -8,15 +8,121 @@
 var canvas = document.getElementById("renderCanvas");
 let divFps = document.getElementById("fps");
 
-// Global variables
+// Global variables for the base app
 var meshes = []; // List of currently loaded meshes
 var menuButton; // Menu button, needs to be global so that all buttons can enable it on click.
 var buttonPanel; // Panel containing mesh buttons, global so that mesh buttons can add themselves to it
 var activeMeshIndex; // Index (in meshes array) of most recently rendered mesh
 
+// Global variables for the measurement tool
+var lengthText, refLengthTextInput; // UI Elements
+var measurementLine, referenceLine; // UI Lines
+var refPoint1, refPoint2; // Reference line vertices
+var measPoint1, measPoint2; // Measurement line vertices
+var measurementVector, referenceVector; // Vectors for the measurement and reference
+var startingPoint, startingTime; // When and where the current click on the mesh has started (null if no mouse button is held)
+
+// Enables the measurement tool on the current mesh
+function enableMeasurements() {
+	// Show the measurement UI
+	lengthText.isVisible = true;
+	refLengthTextInput.isVisible = true;
+
+	// Just in case, mark mesh as pickable so that interactions work
+	//meshes[activeMeshIndex].isPickable = true;
+
+	// Add action handling to the mesh
+	meshes[activeMeshIndex].actionManager = new BABYLON.ActionManager(scene);
+
+	// Tracks when and where the currently held click on the mesh has started
+	startingPoint = null;
+    startingTime = null;
+
+	// When the user starts holding a mouse button on the mesh, remember where and when they clicked
+    meshes[activeMeshIndex].actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickDownTrigger, (evt) => {
+		startingPoint = {x: evt.pointerX, y: evt.pointerY};
+        startingTime = Date.now();
+    }));
+
+	// When the user stops holding a mouse button on the mesh, if it was a short stationary click, move the relevant point to the clicked position
+    meshes[activeMeshIndex].actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickUpTrigger, (evt) => {
+        // Click is ignored if held for over 150ms
+		if(Date.now() - startingTime > 150) return;
+
+		// Click is ignored if the mouse moved during the hold
+        if(evt.pointerX != startingPoint.x || evt.pointerY != startingPoint.y) return;
+
+		// The point to move depends on the button that was clicked
+        switch(evt.sourceEvent.button) {
+            case 0: // LEFT CLICK
+				// Ctrl+Click moves a reference point, otherwise it's a measurement point
+                if(evt.sourceEvent.ctrlKey) {
+					// Show reference point, and the line if both points are active
+					refPoint1.isVisible = true;
+					if(refPoint2.isVisible) referenceLine.isVisible = true;
+
+					// Move reference point to clicked spot on the mesh
+                    refPoint1.position.x = evt.additionalData.pickedPoint.x;
+                    refPoint1.position.y = evt.additionalData.pickedPoint.y;
+                    refPoint1.position.z = evt.additionalData.pickedPoint.z; 
+                } else {
+					// Show measurement point, and the line if both points are active
+					measPoint1.isVisible = true;
+					if(measPoint2.isVisible) measurementLine.isVisible = true;
+
+					// Move measurement point to clicked spot on the mesh
+                    measPoint1.position.x = evt.additionalData.pickedPoint.x;
+                    measPoint1.position.y = evt.additionalData.pickedPoint.y;
+                    measPoint1.position.z = evt.additionalData.pickedPoint.z;
+                }
+                break;
+            case 2: // RIGHT CLICK
+				// Ctrl+Click moves a reference point, otherwise it's a measurement point
+                if(evt.sourceEvent.ctrlKey) {
+                    // Show reference point, and the line if both points are active
+					refPoint2.isVisible = true;
+					if(refPoint1.isVisible) referenceLine.isVisible = true;
+
+					// Move reference point to clicked spot on the mesh
+                    refPoint2.position.x = evt.additionalData.pickedPoint.x;
+                    refPoint2.position.y = evt.additionalData.pickedPoint.y;
+                    refPoint2.position.z = evt.additionalData.pickedPoint.z; 
+                } else {
+                    // Show measurement point, and the line if both points are active
+					measPoint2.isVisible = true;
+					if(measPoint1.isVisible) measurementLine.isVisible = true;
+
+					// Move measurement point to clicked spot on the mesh
+                    measPoint2.position.x = evt.additionalData.pickedPoint.x;
+                    measPoint2.position.y = evt.additionalData.pickedPoint.y;
+                    measPoint2.position.z = evt.additionalData.pickedPoint.z;
+                }
+                break;
+        }
+
+		// Compute the real-world length of the measurement line using its local length, and the information about the reference line
+        measurementVector = measPoint2.position.subtract(measPoint1.position);
+        referenceVector = refPoint2.position.subtract(refPoint1.position);
+        lengthText.text = measurementVector.length() * refLengthTextInput.text / referenceVector.length();
+    }));
+}
+
+// Disables the measurement tool for the current mesh, if any
+function disableMeasurements() {
+	if(meshes[activeMeshIndex]) meshes[activeMeshIndex].actionManager.dispose();
+	refPoint1.isVisible = false;
+	refPoint2.isVisible = false;
+	measPoint1.isVisible = false;
+	measPoint2.isVisible = false;
+	referenceLine.isVisible = false;
+	measurementLine.isVisible = false;
+	refLengthTextInput.isVisible = false;
+	lengthText.isVisible = false;
+}
+
 // This function takes a name and a file, and creates a button in the menu with "name" as text
 // that loads and displays the mesh pointed by "meshSource", which can be a filepath or URL.
-const createMeshButton = function (name, meshSource, meshOperations) {
+function createMeshButton(name, meshSource, meshOperations) {
 	// Allocates a space in the array to store the mesh in, once it's loaded (after button click)
 	let index = meshes.length;
 	meshes.push(null);
@@ -42,6 +148,9 @@ const createMeshButton = function (name, meshSource, meshOperations) {
 			// If mesh is already loaded, reenable it and show "Back to Menu" button
 			meshes[index].setEnabled(true);
 			menuButton.isVisible = true;
+
+			// Activate measurement tool
+			enableMeasurements();
 		} else {
 			// If mesh isn't loaded, load it.
 			// Load time is measured by console.time() and timeEnd()
@@ -55,11 +164,28 @@ const createMeshButton = function (name, meshSource, meshOperations) {
 			// Load the actual mesh asynchronously (returns a Promise)
 			BABYLON.ImportMeshAsync(meshSource, scene).then(function (result) {
 				// After load succeeds, put the mesh reference in the correct slot of the array
-				meshes[index] = result.meshes[0];
+				if(result.meshes[0].name === "__root__") {
+					// Meshes from .glb files have an empty __root__ mesh as parent, with the actual mesh as a child
+					/*if(result.meshes[0].getChildMeshes().length !== 1) {
+						// If there's multiple children, some things will break
+						console.log("Unexpected mesh hierarchy, did not load mesh");
+						return;
+					}*/
+
+					// Save the child (real mesh), not __root__
+					meshes[index] = result.meshes[0].getChildMeshes()[0];
+				} else {
+					// If it's not a .glb, just take the mesh
+					meshes[index] = result.meshes[0];
+				}
+
 				if(typeof meshOperations !== "undefined") meshOperations(meshes[index]); // Apply given operations to mesh, if any
 				console.timeEnd("Loading " + name); // Stop timing (that also logs the time)
 				engine.hideLoadingUI(); // hide the load screen
 				menuButton.isVisible = true; // show menu button (after load only, or you can click it through the load screen which breaks everything)
+				
+				// Activate measurement tool
+				enableMeasurements();
 			});
 		}
 	});
@@ -86,7 +212,27 @@ var createScene = function () {
 
 	// Basic light source, shining down
     var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
-        
+    
+	// Objects for the measurement tool //
+
+	const sphereMat = new BABYLON.StandardMaterial("Sphere Material", scene);
+    sphereMat.diffuseColor = BABYLON.Color3.Red();
+
+    const refMat = new BABYLON.StandardMaterial("Reference Material", scene);
+    refMat.diffuseColor = BABYLON.Color3.Purple();
+
+    measPoint1 = BABYLON.MeshBuilder.CreateSphere("measPoint1", {diameter: 0.05}, scene);
+    measPoint1.material = sphereMat;
+
+    measPoint2 = BABYLON.MeshBuilder.CreateSphere("measPoint2", {diameter: 0.05}, scene);
+    measPoint2.material = sphereMat;
+
+    refPoint1 = BABYLON.MeshBuilder.CreateSphere("refPoint1", {diameter: 0.05}, scene);
+    refPoint1.material = refMat;
+
+    refPoint2 = BABYLON.MeshBuilder.CreateSphere("refPoint2", {diameter: 0.05}, scene);
+    refPoint2.material = refMat;
+
 	// Import mesh from an online source
 	// Target website must implement CORS so that it can serve a file to another domain
 	// BABYLON.ImportMeshAsync("https://babylontest.netlify.app/fountain.glb", scene).then(function (result) {
@@ -103,10 +249,11 @@ var createScene = function () {
 	advancedTexture.addControl(buttonPanel); // add to UI
 
 	// Creation of the buttons for each fountain mesh
-	//createMeshButton("Fountain", "./fountain.glb");
-	//createMeshButton("Fountain Light", "./fountainLight.glb");
-	//createMeshButton("Fountain Downscaled", "./fountainDownscaled.glb");
-	//createMeshButton("Fountain Minimal", "./fountainLightDownscaled.glb");
+	createMeshButton("Fountain", "./fountain.glb");
+	createMeshButton("Fountain Light", "./fountainLight.glb");
+	createMeshButton("Fountain Downscaled", "./fountainDownscaled.glb");
+	createMeshButton("Fountain Minimal", "./fountainLightDownscaled.glb");
+	createMeshButton("Karydaki", "./Re-karydaki.glb");
 	createMeshButton("Monstree GS Original", "./monstree.ply");
 	createMeshButton("Monstree GS Clean", "./monstree_cleaned.ply");
 	createMeshButton("Monstree GS Compressed", "./monstree_cleaned_compressed.ply");
@@ -136,6 +283,9 @@ var createScene = function () {
 		buttonPanel.isVisible = true;
 		menuButton.isVisible = false;
 
+		// Disable measurement tool
+		disableMeasurements();
+
 		// Disable current mesh (makes it invisible and improves performance)
 		meshes[activeMeshIndex].setEnabled(false);
 	});
@@ -144,14 +294,65 @@ var createScene = function () {
 	advancedTexture.addControl(menuButton);
 	menuButton.isVisible = false;
 
+	// Measurement tool //
+
+	// Measurement line, its length (converted to real-world units) is shown
+	measurementLine = new BABYLON.GUI.MultiLine();
+    measurementLine.add(measPoint1, measPoint2);
+    measurementLine.color = "red";
+    advancedTexture.addControl(measurementLine);
+
+	// Reference line, basis for the conversion of mesh units into real-world units
+    referenceLine = new BABYLON.GUI.MultiLine();
+    referenceLine.add(refPoint1, refPoint2);
+    referenceLine.color = "purple";
+    advancedTexture.addControl(referenceLine);
+
+	// Text Block showing the result of the measurement. Fixed in the top-right corner.
+    lengthText = new BABYLON.GUI.TextBlock();
+    lengthText.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    lengthText.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    lengthText.resizeToFit = true;
+    lengthText.outlineColor = "white";
+    lengthText.outlineWidth = 2;
+    lengthText.left = "-20px";
+    lengthText.top = "40px";
+    advancedTexture.addControl(lengthText);
+
+	// Text Field where the user has to enter the real-world length of the reference line. Fixed in the top-left corner.
+    refLengthTextInput = new BABYLON.GUI.InputText();
+    refLengthTextInput.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    refLengthTextInput.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    refLengthTextInput.left = "20px";
+    refLengthTextInput.top = "20px";
+    refLengthTextInput.width = "160px";
+    refLengthTextInput.height = "60px";
+    refLengthTextInput.background = "white";
+    refLengthTextInput.focusedBackground = "white";
+    refLengthTextInput.color = "black";
+    advancedTexture.addControl(refLengthTextInput);
+
+	// Updates length text when the reference length has been changed
+	refLengthTextInput.onTextChangedObservable.add((_eventData, _eventState) => {
+		measurementVector = measPoint2.position.subtract(measPoint1.position);
+        referenceVector = refPoint2.position.subtract(refPoint1.position);
+        lengthText.text = measurementVector.length() * refLengthTextInput.text / referenceVector.length();
+	});
+
+	// Measurements are disabled by default since there's no mesh
+	disableMeasurements();
+
 	// Allows access to the debug mode of BabylonJS, including an inspector.
 	// Convenient for debugging.
-	// scene.debugLayer.show();
+	 scene.debugLayer.show();
 
 	// Change of performance settings in Babylon. May or may not have an impact on FPS.
 	// Stops automatically clearing the canvas after each draw, ruining the visual aspect
 	// scene.performancePriority = BABYLON.ScenePerformancePriority.Intermediate;
 	
+	//scene.createOrUpdateSelectionOctree();
+	
+
     return scene;
 };
 
