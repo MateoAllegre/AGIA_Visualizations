@@ -4,43 +4,45 @@
 
 "use strict"; // strict mode to guarantee better coding
 
+import ConversionHelper from "./conversions.js";
+
 // HTML elements (divs) for the render canvas, and for the fps counter
 var canvas = document.getElementById("renderCanvas");
 let divFps = document.getElementById("fps");
 
 // Global variables for the base app
 var meshes = []; // List of currently loaded meshes
-var menuButton; // Menu button, needs to be global so that all buttons can enable it on click.
-var buttonPanel; // Panel containing mesh buttons, global so that mesh buttons can add themselves to it
 var activeMeshIndex; // Index (in meshes array) of most recently rendered mesh
 
+var menuButton; // Menu button, needs to be global so that all buttons can enable it on click.
+var buttonPanel; // Panel containing mesh buttons, global so that mesh buttons can add themselves to it
+
 // Global variables for the measurement tool
-var lengthText, refLengthTextInput; // UI Elements
-var measurementLine, referenceLine; // UI Lines
-var refPoint1, refPoint2; // Reference line vertices
-var measPoint1, measPoint2; // Measurement line vertices
-var measurementVector, referenceVector; // Vectors for the measurement and reference
-var startingPoint, startingTime; // When and where the current click on the mesh has started (null if no mouse button is held)
-var measurementObserver; // Pointer observer for the measurement tool
+var mtGUI; // Measurement Tool GUI
+var mtMeasurementLine, mtReferenceLine; // UI Lines
+var mtRefPoint1, mtRefPoint2; // Reference line vertices
+var mtMeasPoint1, mtMeasPoint2; // Measurement line vertices
+var mtMeasurementObserver; // Pointer observer for the measurement tool
+var mtButton; // Button to activate measurement tool
+var mtRefInput, mtMeasText; // Input field and output text for the reference length and measurement length, respectively
 
 // Enables the measurement tool on the current mesh
 function enableMeasurements() {
-	// Show the measurement UI
-	lengthText.isVisible = true;
-	refLengthTextInput.isVisible = true;
+	// Hide the button
+	mtButton.isVisible = false;
 
-	// Just in case, mark mesh as pickable so that interactions work
-	//meshes[activeMeshIndex].isPickable = true;
+	// Show the measurement UI
+	mtGUI.isVisible = true;
 
 	// Tracks when and where the currently held click on the mesh has started
-	startingPoint = null;
-    startingTime = null;
+	var startingPoint = null;
+    var startingTime = null;
 
 	// If measurements are already enabled, do nothing
-	if(measurementObserver) return;
+	if(mtMeasurementObserver) return;
 
 	// Pointer events to place the measurement points and calculate the length
-	measurementObserver = scene.onPointerObservable.add((pointerInfo) => {
+	mtMeasurementObserver = scene.onPointerObservable.add((pointerInfo) => {
 		switch(pointerInfo.type) {
 			// When click starts, record the time and position of the click
 			case BABYLON.PointerEventTypes.POINTERDOWN:
@@ -56,15 +58,8 @@ function enableMeasurements() {
 				// Click is ignored if the mouse moved during the hold
 				if(pointerInfo.event.x != startingPoint.x || pointerInfo.event.y != startingPoint.y) return;
 
-				let pickInfo = pointerInfo.pickInfo;
-
-				// debug
-				//if (pickInfo.hit && !pickInfo.pickedPoint) {
-				//	console.warn("Hit detected, but no point. Mesh:", pointerInfo.pickInfo.pickedMesh);
-				//}
-
 				// Click is ignored if not on a mesh
-				if(!pickInfo.hit || !pickInfo.pickedPoint) return;
+				if(!pointerInfo.pickInfo.hit || !pointerInfo.pickInfo.pickedPoint) return;
 
 				// The point to move depends on the button that was clicked
 				switch(pointerInfo.event.button) {
@@ -72,74 +67,114 @@ function enableMeasurements() {
 						// Ctrl+Click moves a reference point, otherwise it's a measurement point
 						if(pointerInfo.event.ctrlKey) {
 							// Show reference point, and the line if both points are active
-							refPoint1.isVisible = true;
-							if(refPoint2.isVisible) referenceLine.isVisible = true;
+							mtRefPoint1.isVisible = true;
+							if(mtRefPoint2.isVisible) mtReferenceLine.isVisible = true;
 
 							// Move reference point to clicked spot on the mesh
-							refPoint1.position.x = pickInfo.pickedPoint.x;
-							refPoint1.position.y = pickInfo.pickedPoint.y;
-							refPoint1.position.z = pickInfo.pickedPoint.z; 
+							mtRefPoint1.position.x = pointerInfo.pickInfo.pickedPoint.x;
+							mtRefPoint1.position.y = pointerInfo.pickInfo.pickedPoint.y;
+							mtRefPoint1.position.z = pointerInfo.pickInfo.pickedPoint.z; 
 						} else {
 							// Show measurement point, and the line if both points are active
-							measPoint1.isVisible = true;
-							if(measPoint2.isVisible) measurementLine.isVisible = true;
+							mtMeasPoint1.isVisible = true;
+							if(mtMeasPoint2.isVisible) mtMeasurementLine.isVisible = true;
 
 							// Move measurement point to clicked spot on the mesh
-							measPoint1.position.x = pickInfo.pickedPoint.x;
-							measPoint1.position.y = pickInfo.pickedPoint.y;
-							measPoint1.position.z = pickInfo.pickedPoint.z;
+							mtMeasPoint1.position.x = pointerInfo.pickInfo.pickedPoint.x;
+							mtMeasPoint1.position.y = pointerInfo.pickInfo.pickedPoint.y;
+							mtMeasPoint1.position.z = pointerInfo.pickInfo.pickedPoint.z;
 						}
 						break;
 					case 2: // RIGHT CLICK
 						// Ctrl+Click moves a reference point, otherwise it's a measurement point
 						if(pointerInfo.event.ctrlKey) {
 							// Show reference point, and the line if both points are active
-							refPoint2.isVisible = true;
-							if(refPoint1.isVisible) referenceLine.isVisible = true;
+							mtRefPoint2.isVisible = true;
+							if(mtRefPoint1.isVisible) mtReferenceLine.isVisible = true;
 
 							// Move reference point to clicked spot on the mesh
-							refPoint2.position.y = pickInfo.pickedPoint.y;
-							refPoint2.position.z = pickInfo.pickedPoint.z; 
-							refPoint2.position.x = pickInfo.pickedPoint.x;
+							mtRefPoint2.position.y = pointerInfo.pickInfo.pickedPoint.y;
+							mtRefPoint2.position.z = pointerInfo.pickInfo.pickedPoint.z; 
+							mtRefPoint2.position.x = pointerInfo.pickInfo.pickedPoint.x;
 						} else {
 							// Show measurement point, and the line if both points are active
-							measPoint2.isVisible = true;
-							if(measPoint1.isVisible) measurementLine.isVisible = true;
+							mtMeasPoint2.isVisible = true;
+							if(mtMeasPoint1.isVisible) mtMeasurementLine.isVisible = true;
 
 							// Move measurement point to clicked spot on the mesh
-							measPoint2.position.x = pickInfo.pickedPoint.x;
-							measPoint2.position.y = pickInfo.pickedPoint.y;
-							measPoint2.position.z = pickInfo.pickedPoint.z;
+							mtMeasPoint2.position.x = pointerInfo.pickInfo.pickedPoint.x;
+							mtMeasPoint2.position.y = pointerInfo.pickInfo.pickedPoint.y;
+							mtMeasPoint2.position.z = pointerInfo.pickInfo.pickedPoint.z;
 						}
 						break;
 				}
 
-				// Compute the real-world length of the measurement line using its local length, and the information about the reference line
-				measurementVector = measPoint2.position.subtract(measPoint1.position);
-				referenceVector = refPoint2.position.subtract(refPoint1.position);
-				lengthText.text = measurementVector.length() * refLengthTextInput.text / referenceVector.length();
+				// Update display
+				updateMeasurementDisplay();
 				break;
 		}
 	});
 }
 
+// Updates the text displaying the length of the measurement line
+function updateMeasurementDisplay() {
+	// If one of the measurement points is missing
+	if(!mtMeasPoint1.isVisible || !mtMeasPoint2.isVisible) {
+		mtMeasText.text = "Measurement line is not drawn";
+		mtMeasText.color = "red";
+		return;
+	}
+
+	// If one of the reference points is missing
+	if(!mtRefPoint1.isVisible || !mtRefPoint2.isVisible) {
+		mtMeasText.text = "Reference line is not drawn";
+		mtMeasText.color = "red";
+		return;
+	}
+
+	let measurementVector = mtMeasPoint2.position.subtract(mtMeasPoint1.position);
+	let referenceVector = mtRefPoint2.position.subtract(mtRefPoint1.position);
+
+	// If the reference line is of length 0
+	if(referenceVector.length() === 0) {
+		mtMeasText.text = "Reference line can't have a length of 0";
+		mtMeasText.color = "red";
+		return;
+	}
+
+	let referenceMeterLength = ConversionHelper.stringToMeters(mtRefInput.text);
+
+	// If the conversion failed (= returned NaN)
+	if(isNaN(referenceMeterLength)) {
+		mtMeasText.text = "Reference line length is invalid";
+		mtMeasText.color = "red";
+		return;
+	}
+
+	let measurementMeterLength = measurementVector.length() * referenceMeterLength / referenceVector.length()
+	mtMeasText.text = ConversionHelper.metersToString(measurementMeterLength);
+	mtMeasText.color = "green";
+}
+
 // Disables the measurement tool for the current mesh, if any
 function disableMeasurements() {
 	// If an observer has been defined, remove it
-	if(measurementObserver) {
-		scene.onPointerObservable.remove(measurementObserver);
-		measurementObserver = null;
+	if(mtMeasurementObserver) {
+		scene.onPointerObservable.remove(mtMeasurementObserver);
+		mtMeasurementObserver = null;
 	}
 
+	// clear text field
+	mtRefInput.text = "";
+
 	// hide measurement objects
-	refPoint1.isVisible = false;
-	refPoint2.isVisible = false;
-	measPoint1.isVisible = false;
-	measPoint2.isVisible = false;
-	referenceLine.isVisible = false;
-	measurementLine.isVisible = false;
-	refLengthTextInput.isVisible = false;
-	lengthText.isVisible = false;
+	mtRefPoint1.isVisible = false;
+	mtRefPoint2.isVisible = false;
+	mtMeasPoint1.isVisible = false;
+	mtMeasPoint2.isVisible = false;
+	mtReferenceLine.isVisible = false;
+	mtMeasurementLine.isVisible = false;
+	mtGUI.isVisible = false;
 }
 
 // This function takes a name and a file, and creates a button in the menu with "name" as text
@@ -171,8 +206,8 @@ function createMeshButton(name, meshSource, meshOperations) {
 			meshes[index].setEnabled(true);
 			menuButton.isVisible = true;
 
-			// Activate measurement tool
-			enableMeasurements();
+			// Show measurement tool button
+			mtButton.isVisible = true;
 		} else {
 			// If mesh isn't loaded, load it.
 			// Load time is measured by console.time() and timeEnd()
@@ -188,16 +223,10 @@ function createMeshButton(name, meshSource, meshOperations) {
 				// After load succeeds, put the mesh reference in the correct slot of the array
 				if(result.meshes[0].name === "__root__" && result.meshes[0].getChildMeshes().length === 1) {
 					// Meshes from .glb files have an empty __root__ mesh as parent, with the actual mesh as a child
-					/*if(result.meshes[0].getChildMeshes().length !== 1) {
-						// If there's multiple children, some things will break
-						console.log("Unexpected mesh hierarchy, did not load mesh");
-						return;
-					}*/
-
-					// Save the child (real mesh), not __root__
+					// If __root__ has only one child, save it and not __root__
 					meshes[index] = result.meshes[0].getChildMeshes()[0];
 				} else {
-					// If it's not a .glb, just take the mesh
+					// If it's not a .glb, or __root__ contains several meshes, just take the root mesh
 					meshes[index] = result.meshes[0];
 				}
 
@@ -221,9 +250,9 @@ function createMeshButton(name, meshSource, meshOperations) {
 					meshes[index].subdivide(1000);
 					meshes[index].createOrUpdateSubmeshesOctree(64);
 				}
-				
-				// Activate measurement tool
-				enableMeasurements();
+
+				// Show measurement tool button
+				mtButton.isVisible = true;
 			});
 		}
 	});
@@ -233,7 +262,7 @@ function createMeshButton(name, meshSource, meshOperations) {
 	return button;
 }
 
-var createScene = function () {
+var createScene = async function () {
 	// Creation of the scene
     var scene = new BABYLON.Scene(engine);
 
@@ -259,21 +288,21 @@ var createScene = function () {
     const refMat = new BABYLON.StandardMaterial("Reference Material", scene);
     refMat.diffuseColor = BABYLON.Color3.Purple();
 
-    measPoint1 = BABYLON.MeshBuilder.CreateSphere("measPoint1", {diameter: 0.05}, scene);
-    measPoint1.material = sphereMat;
-	measPoint1.isPickable = false;
+    mtMeasPoint1 = BABYLON.MeshBuilder.CreateSphere("measPoint1", {diameter: 0.05}, scene);
+    mtMeasPoint1.material = sphereMat;
+	mtMeasPoint1.isPickable = false;
 
-    measPoint2 = BABYLON.MeshBuilder.CreateSphere("measPoint2", {diameter: 0.05}, scene);
-    measPoint2.material = sphereMat;
-	measPoint2.isPickable = false;
+    mtMeasPoint2 = BABYLON.MeshBuilder.CreateSphere("measPoint2", {diameter: 0.05}, scene);
+    mtMeasPoint2.material = sphereMat;
+	mtMeasPoint2.isPickable = false;
 
-    refPoint1 = BABYLON.MeshBuilder.CreateSphere("refPoint1", {diameter: 0.05}, scene);
-    refPoint1.material = refMat;
-	refPoint1.isPickable = false;
+    mtRefPoint1 = BABYLON.MeshBuilder.CreateSphere("refPoint1", {diameter: 0.05}, scene);
+    mtRefPoint1.material = refMat;
+	mtRefPoint1.isPickable = false;
 
-    refPoint2 = BABYLON.MeshBuilder.CreateSphere("refPoint2", {diameter: 0.05}, scene);
-    refPoint2.material = refMat;
-	refPoint2.isPickable = false;
+    mtRefPoint2 = BABYLON.MeshBuilder.CreateSphere("refPoint2", {diameter: 0.05}, scene);
+    mtRefPoint2.material = refMat;
+	mtRefPoint2.isPickable = false;
 
 	// Import mesh from an online source
 	// Target website must implement CORS so that it can serve a file to another domain
@@ -286,47 +315,23 @@ var createScene = function () {
 	// UI Base (all UI elements are children of this)
 	var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
-	// Create image-only button
-	const tapeButton = BABYLON.GUI.Button.CreateImageOnlyButton("tapeBtn", "measure-tape.png");
-	tapeButton.width = "64px";
-	tapeButton.height = "64px";
-	tapeButton.thickness = 0; // No border
-	tapeButton.background = ""; // No background
-
-	// Optional: set alignment (e.g. bottom-left corner)
-	tapeButton.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-	tapeButton.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-	tapeButton.left = "20px";
-	tapeButton.top = "-20px";
-
-	tapeButton.image.stretch = BABYLON.GUI.Image.STRETCH_UNIFORM;
-	tapeButton.image.autoScale = false;
-
-	// On click, activate tool
-	tapeButton.onPointerClickObservable.add(() => {
-		enableMeasurements(); // Replace with your actual function
-	});
-
-	// Add to GUI
-	advancedTexture.addControl(tapeButton);
-
 	// Creation of a Stack Panel to store the buttons for each mesh
 	buttonPanel = new BABYLON.GUI.StackPanel("Button Container");
 	advancedTexture.addControl(buttonPanel); // add to UI
 
 	// Creation of the buttons for each fountain mesh
-	//createMeshButton("Fountain", "./fountain.glb");
-	//createMeshButton("Fountain Light", "./fountainLight.glb");
-	//createMeshButton("Fountain Downscaled", "./fountainDownscaled.glb");
-	createMeshButton("Morosini Fountain", "./fountainLightDownscaled.glb");
-	createMeshButton("Karydaki", "./Re-karydaki.glb");
-	//createMeshButton("Monstree GS Original", "./monstree.ply");
-	//createMeshButton("Monstree GS Clean", "./monstree_cleaned.ply");
-	//createMeshButton("Monstree GS Compressed", "./monstree_cleaned_compressed.ply");
-	//createMeshButton("Monstree GS .splat", "./monstree.splat");
+	//createMeshButton("Fountain", "./meshes/fountain.glb");
+	//createMeshButton("Fountain Light", "./meshes/fountainLight.glb");
+	//createMeshButton("Fountain Downscaled", "./meshes/fountainDownscaled.glb");
+	createMeshButton("Morosini Fountain", "./meshes/fountainLightDownscaled.glb");
+	createMeshButton("Karydaki", "./meshes/Re-karydaki.glb");
+	//createMeshButton("Monstree GS Original", "./meshes/monstree.ply");
+	//createMeshButton("Monstree GS Clean", "./meshes/monstree_cleaned.ply");
+	//createMeshButton("Monstree GS Compressed", "./meshes/monstree_cleaned_compressed.ply");
+	//createMeshButton("Monstree GS .splat", "./meshes/monstree.splat");
 
 	// For Monstree, move the mesh after load, because it is not centered
-	createMeshButton("Monstree", "./monstree.glb", (mesh) => {
+	createMeshButton("Monstree", "./meshes/monstree.glb", (mesh) => {
 		mesh.position = new BABYLON.Vector3(0.5,-1.5,2);
 	});
 
@@ -348,6 +353,7 @@ var createScene = function () {
 		// Make menu visible and hide menu button
 		buttonPanel.isVisible = true;
 		menuButton.isVisible = false;
+		mtButton.isVisible = false;
 
 		// Disable measurement tool
 		disableMeasurements();
@@ -363,46 +369,58 @@ var createScene = function () {
 	// Measurement tool //
 
 	// Measurement line, its length (converted to real-world units) is shown
-	measurementLine = new BABYLON.GUI.MultiLine("Measurement Line");
-    measurementLine.add(measPoint1, measPoint2);
-    measurementLine.color = "red";
-    advancedTexture.addControl(measurementLine);
+	mtMeasurementLine = new BABYLON.GUI.MultiLine("Measurement Line");
+    mtMeasurementLine.add(mtMeasPoint1, mtMeasPoint2);
+    mtMeasurementLine.color = "red";
+    advancedTexture.addControl(mtMeasurementLine);
 
 	// Reference line, basis for the conversion of mesh units into real-world units
-    referenceLine = new BABYLON.GUI.MultiLine("Reference Line");
-    referenceLine.add(refPoint1, refPoint2);
-    referenceLine.color = "purple";
-    advancedTexture.addControl(referenceLine);
+    mtReferenceLine = new BABYLON.GUI.MultiLine("Reference Line");
+    mtReferenceLine.add(mtRefPoint1, mtRefPoint2);
+    mtReferenceLine.color = "purple";
+    advancedTexture.addControl(mtReferenceLine);
 
-	// Text Block showing the result of the measurement. Fixed in the top-right corner.
-    lengthText = new BABYLON.GUI.TextBlock("Length Text");
-    lengthText.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    lengthText.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    lengthText.resizeToFit = true;
-    lengthText.outlineColor = "white";
-    lengthText.outlineWidth = 2;
-    lengthText.left = "-20px";
-    lengthText.top = "40px";
-    advancedTexture.addControl(lengthText);
+	// Button with a measuring tape icon, to activate the measurement tool
+	mtButton = new BABYLON.GUI.Button("MTButton");
+	const tapeImage = new BABYLON.GUI.Image("MTButtonImage", "./gui/measure-tape-white.png");
+	mtButton.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+	mtButton.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    mtButton.left = "10px";
+    mtButton.top = "-10px";
+    mtButton.width = "90px";
+	mtButton.height = "90px";
+	mtButton.cornerRadius = 10;
+	mtButton.background = "#222222aa";
+    mtButton.thickness = 2;
+	mtButton.isVisible = false; // only visible when a mesh is loaded, not by default
+    mtButton.addControl(tapeImage);
+    advancedTexture.addControl(mtButton);
 
-	// Text Field where the user has to enter the real-world length of the reference line. Fixed in the top-left corner.
-    refLengthTextInput = new BABYLON.GUI.InputText("Reference Length Text Input");
-    refLengthTextInput.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    refLengthTextInput.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    refLengthTextInput.left = "20px";
-    refLengthTextInput.top = "20px";
-    refLengthTextInput.width = "160px";
-    refLengthTextInput.height = "60px";
-    refLengthTextInput.background = "white";
-    refLengthTextInput.focusedBackground = "white";
-    refLengthTextInput.color = "black";
-    advancedTexture.addControl(refLengthTextInput);
+	// On click, activate tool
+	mtButton.onPointerClickObservable.add(() => {
+		enableMeasurements();
+		updateMeasurementDisplay();
+	});
 
+	// Load GUI created with editor, get the measurement UI from it (by cloning and putting the clone in advancedTexture), then dispose of the loaded GUI
+	let loadedGUI = await BABYLON.GUI.AdvancedDynamicTexture.ParseFromFileAsync("./gui/measurementToolGUI.json");
+	mtGUI = loadedGUI.getControlByName("MeasurementUI").clone();
+	advancedTexture.addControl(mtGUI);
+	loadedGUI.dispose();
+
+	// Get the close button and make it disable the tool
+	let mtCloseButton = advancedTexture.getControlByName("MTCloseButton");
+	mtCloseButton.onPointerUpObservable.add(() => {
+		disableMeasurements();
+		mtButton.isVisible = true;
+	});
+
+	mtMeasText = advancedTexture.getControlByName("MTMeasText");
+	mtRefInput = advancedTexture.getControlByName("MTRefInput");
+	
 	// Updates length text when the reference length has been changed
-	refLengthTextInput.onTextChangedObservable.add((_eventData, _eventState) => {
-		measurementVector = measPoint2.position.subtract(measPoint1.position);
-        referenceVector = refPoint2.position.subtract(refPoint1.position);
-        lengthText.text = measurementVector.length() * refLengthTextInput.text / referenceVector.length();
+	mtRefInput.onTextChangedObservable.add((_eventData, _eventState) => {
+		updateMeasurementDisplay();
 	});
 
 	// Measurements are disabled by default since there's no mesh
@@ -410,27 +428,22 @@ var createScene = function () {
 
 	// Allows access to the debug mode of BabylonJS, including an inspector.
 	// Convenient for debugging.
-	scene.debugLayer.show();
-
-	// Change of performance settings in Babylon. May or may not have an impact on FPS.
-	// Stops automatically clearing the canvas after each draw, ruining the visual aspect
-	// scene.performancePriority = BABYLON.ScenePerformancePriority.Intermediate;
+	//scene.debugLayer.show();
 	
-
     return scene;
 };
 
-// Creation of the Babylon Engine and the scene
+// Creation of the Babylon Engine
 var engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
-var scene = createScene();
+var scene;
 
-// Definition of the render loop
-engine.runRenderLoop(function () {
-	// If the scene has been created
-	if (scene) {
-		scene.render(); // Render the frame in the scene
+// Create scene asynchronously, then when it's ready, define render loop to render the frames of the scene
+createScene().then((loadedScene) => {
+	scene = loadedScene;
+	engine.runRenderLoop(function () {
+		loadedScene.render(); // Render the frame in the scene
 		divFps.innerHTML = engine.getFps().toFixed() + " FPS"; // Update the FPS counter
-	}
+	});
 });
 
 // Resize when necessary
