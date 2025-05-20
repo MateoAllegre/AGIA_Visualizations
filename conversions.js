@@ -1,3 +1,9 @@
+/******************************************************************************************************
+ * Conversion Helper                                                                                  *
+ * Allows conversions from a string (e.g. "10.3 cm") to a meter length (i.e. 0.103) and vice-versa    *
+ * Default export contains stringToMeters and metersToString functions                                *
+ ******************************************************************************************************/
+
 const ConversionHelper = (function () {
     // Units that can be interpreted by stringToMeters, associated with their power of 10
     const unitsIn = new Map();

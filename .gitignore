@@ -18,5 +18,5 @@
 *.gz
 
 # Notes
-aucasou.txt
-todo.txt
+*.txt
+!commandes.txt
