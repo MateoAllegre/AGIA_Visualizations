@@ -12,14 +12,14 @@ const MeasurementTool = (function () {
     var mtMeasurementLine, mtReferenceLine; // UI Lines
     var mtRefPoint1, mtRefPoint2; // Reference line vertices
     var mtMeasPoint1, mtMeasPoint2; // Measurement line vertices
-    var mtMeasurementObserver; // Pointer observer for the measurement tool
+    var mtObserver; // Pointer observer for the measurement tool
     var mtButton; // Button to activate measurement tool
     var mtRefInput, mtMeasText; // Input field and output text for the reference length and measurement length, respectively
 
     // Enables the measurement tool on the current mesh
-    function enableMeasurements() {
+    function enable() {
         // Hide the button
-        mtButton.isVisible = false;
+        hideButton();
 
         // Show the measurement UI
         mtGUI.isVisible = true;
@@ -29,14 +29,13 @@ const MeasurementTool = (function () {
         var startingTime = null;
 
         // If measurements are already enabled, do nothing
-        if(mtMeasurementObserver) return;
+        if(mtObserver) return;
 
         // Pointer events to place the measurement points and calculate the length
-        mtMeasurementObserver = scene.onPointerObservable.add((pointerInfo) => {
+        mtObserver = scene.onPointerObservable.add((pointerInfo) => {
             switch(pointerInfo.type) {
                 // When click starts, record the time and position of the click
                 case BABYLON.PointerEventTypes.POINTERDOWN:
-                    //var pickInfo = scene.pick(scene.pointerX, scene.pointerY);
                     startingPoint = {x: pointerInfo.event.x, y: pointerInfo.event.y};
                     startingTime = Date.now();
                     break;
@@ -100,18 +99,18 @@ const MeasurementTool = (function () {
                     }
 
                     // Update display
-                    updateMeasurementDisplay();
+                    updateDisplay();
                     break;
             }
         });
     }
 
     // Disables the measurement tool for the current mesh, if any
-    function disableMeasurements() {
+    function disable() {
         // If an observer has been defined, remove it
-        if(mtMeasurementObserver) {
-            scene.onPointerObservable.remove(mtMeasurementObserver);
-            mtMeasurementObserver = null;
+        if(mtObserver) {
+            scene.onPointerObservable.remove(mtObserver);
+            mtObserver = null;
         }
     
         // clear text field
@@ -127,8 +126,9 @@ const MeasurementTool = (function () {
         mtGUI.isVisible = false;
     }
 
+    // LOCAL FUNCTION
     // Updates the text displaying the length of the measurement line
-    function updateMeasurementDisplay() {
+    function updateDisplay() {
         // If one of the measurement points is missing
         if(!mtMeasPoint1.isVisible || !mtMeasPoint2.isVisible) {
             mtMeasText.text = "Measurement line is not drawn";
@@ -167,7 +167,8 @@ const MeasurementTool = (function () {
         mtMeasText.color = "green";
     }
 
-    async function initMeasurementTool(babylonScene, advancedTexture) {
+    // Initializes all the necessary components for the measurement tool, in the given scene, attaching the UI to the given AdvancedTexture
+    async function init(babylonScene, advancedTexture) {
         scene = babylonScene;
 
         // Non-UI objects and materials
@@ -210,7 +211,7 @@ const MeasurementTool = (function () {
 
         // Button with a measuring tape icon, to activate the measurement tool
         mtButton = new BABYLON.GUI.Button("mtButton");
-        const tapeImage = new BABYLON.GUI.Image("mtButtonImage", "./gui/measure-tape-white.png");
+        const mtButtonImage = new BABYLON.GUI.Image("mtButtonImage", "./gui/measure-tape-white.png");
         mtButton.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
         mtButton.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
         mtButton.left = "10px";
@@ -221,13 +222,13 @@ const MeasurementTool = (function () {
         mtButton.background = "#222222aa";
         mtButton.thickness = 2;
         mtButton.isVisible = false; // only visible when a mesh is loaded, not by default
-        mtButton.addControl(tapeImage);
+        mtButton.addControl(mtButtonImage);
         advancedTexture.addControl(mtButton);
 
         // On click, activate tool
         mtButton.onPointerClickObservable.add(() => {
-            enableMeasurements();
-            updateMeasurementDisplay();
+            enable();
+            updateDisplay();
         });
 
         // Load GUI created with editor, get the measurement UI from it (by cloning and putting the clone in advancedTexture), then dispose of the loaded GUI
@@ -239,8 +240,8 @@ const MeasurementTool = (function () {
         // Get the close button and make it disable the tool
         let mtCloseButton = advancedTexture.getControlByName("MTCloseButton");
         mtCloseButton.onPointerUpObservable.add(() => {
-            disableMeasurements();
-            mtButton.isVisible = true;
+            disable();
+            showButton();
         });
 
         mtMeasText = advancedTexture.getControlByName("MTMeasText");
@@ -248,22 +249,22 @@ const MeasurementTool = (function () {
         
         // Updates length text when the reference length has been changed
         mtRefInput.onTextChangedObservable.add((_eventData, _eventState) => {
-            updateMeasurementDisplay();
+            updateDisplay();
         });
 
         // Measurements are disabled by default since there's no mesh
-        disableMeasurements();
+        disable();
     }
 
-    const showMeasurementButton = () => {mtButton.isVisible = true};
-    const hideMeasurementButton = () => {mtButton.isVisible = false};
+    const showButton = () => {mtButton.isVisible = true};
+    const hideButton = () => {mtButton.isVisible = false};
 
     return {
-        showMeasurementButton,
-        hideMeasurementButton,
-        enableMeasurements,
-        disableMeasurements,
-        initMeasurementTool
+        showButton,
+        hideButton,
+        enable,
+        disable,
+        init
     };
 })();
 

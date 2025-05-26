@@ -47,7 +47,7 @@ function createMeshButton(name, meshSource, meshOperations) {
 			menuButton.isVisible = true;
 
 			// Show measurement tool button
-			MeasurementTool.showMeasurementButton();
+			MeasurementTool.showButton();
 		} else {
 			// If mesh isn't loaded, load it.
 			// Load time is measured by console.time() and timeEnd()
@@ -92,7 +92,7 @@ function createMeshButton(name, meshSource, meshOperations) {
 				}
 
 				// Show measurement tool button
-				MeasurementTool.showMeasurementButton();
+				MeasurementTool.showButton();
 			});
 		}
 	});
@@ -186,10 +186,10 @@ var createScene = async function () {
 		// Make menu visible and hide menu button
 		buttonPanel.isVisible = true;
 		menuButton.isVisible = false;
-		MeasurementTool.hideMeasurementButton();
+		MeasurementTool.hideButton();
 
 		// Disable measurement tool
-		MeasurementTool.disableMeasurements();
+		MeasurementTool.disable();
 
 		// Disable current mesh (makes it invisible and improves performance)
 		meshes[activeMeshIndex].setEnabled(false);
@@ -202,7 +202,7 @@ var createScene = async function () {
 	////////////////////////////////////////////////////////////////////////////////////
 
 	// Initializing measurement tool //
-	await MeasurementTool.initMeasurementTool(scene, advancedTexture);
+	await MeasurementTool.init(scene, advancedTexture);
 
 	// Allows access to the debug mode of BabylonJS, including an inspector.
 	// Convenient for debugging.
