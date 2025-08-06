@@ -13,53 +13,63 @@ var meshes = []; // List of currently loaded meshes
 var activeMeshIndex; // Index (in meshes array) of most recently rendered mesh
 
 var menuButton; // Menu button, needs to be global so that all buttons can enable it on click.
-var buttonPanel; // Panel containing mesh buttons, global so that mesh buttons can add themselves to it
+var mapAdvancedTexture; // Advanced Texture (=GUI) on the map, containing the pins for each model
+var mapPointerObserver; // Handles DragDrop on map screen, global so that it can be disabled in 3D view
+var mapImagePlane, mapGuiPlane; // Planes for the map on the map screen, disabled on 3D view
+var mapDragging = false; // Boolean answering the question: am I currently dragging on the map screen?
+var camera2D, camera3D; // Babylon Cameras for the map screen (2D) and mesh screen (3D)
 
 import MeasurementTool from "./measurementTool.js";
 
 // This function takes a name and a file, and creates a button in the menu with "name" as text
 // that loads and displays the mesh pointed by "meshSource", which can be a filepath or URL.
-function createMeshButton(name, meshSource, meshOperations) {
+function createPin(meshName, uvx, uvy, meshOperations) {
 	// Allocates a space in the array to store the mesh in, once it's loaded (after button click)
 	let index = meshes.length;
 	meshes.push(null);
 
-	// Mesh button configuration
-	var button = BABYLON.GUI.Button.CreateSimpleButton("load" + name, name);
-	button.width = "250px";
-	button.height = "100px";
-	button.fontSize = "23px";
-	button.background = "red";
-	button.color = "darkred"; // text and border color
-	button.cornerRadius = 3; // rounds the corner of the rectangle by 3px
-	button.thickness = 3; // thickness of the border
-	button.paddingBottom = "5px"; // adds spacing between buttons in the panel
+	var pin = new BABYLON.GUI.Ellipse();
+    pin.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    pin.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
 
-	// On Click behaviour
-	button.onPointerUpObservable.add(() => {
-		// hides the menu buttons and sets activeMeshIndex
-		buttonPanel.isVisible = false;
+    pin.width = "20px";
+    pin.height = "20px";
+    pin.color = "red";
+    pin.thickness = 2;
+    pin.background = "white";
+    pin.cornerRadius = 10;
+	pin.left = (uvx - 0.5) * 100 + "%";
+    pin.top = (0.5 - uvy) * 100 + "%";
+
+	// Change cursor style based on state related to the pin
+    pin.onPointerEnterObservable.add(() => canvas.style.cursor = "pointer");
+    pin.onPointerOutObservable.add(() => canvas.style.cursor = mapDragging ? "grabbing" : "grab");
+
+	pin.onPointerClickObservable.add(() => {
+        mapImagePlane.setEnabled(false);
+        mapGuiPlane.setEnabled(false);
+		mapPointerObserver.remove();
+		scene.doNotHandleCursors = false;
+		canvas.style.cursor = "default";
 		activeMeshIndex = index;
 
 		if(meshes[index] != null) {
-			// If mesh is already loaded, reenable it and show "Back to Menu" button
+			// If mesh is already loaded, reenable it
 			meshes[index].setEnabled(true);
-			menuButton.isVisible = true;
-
-			// Show measurement tool button
-			MeasurementTool.showButton();
 		} else {
 			// If mesh isn't loaded, load it.
 			// Load time is measured by console.time() and timeEnd()
 			// The BabylonJS loading UI is shown during load (it can be configured)
 			
 			// Start timing and show load screen
-			console.time("Loading " + name);
-			console.log("Start loading of " + name);
+			console.time("Loading " + meshName);
+			console.log("Start loading of " + meshName);
 			engine.displayLoadingUI();
+
+			let meshPath = "./meshes/" + meshName + ".glb"; // todo: add Light at the end if necessary
 			
 			// Load the actual mesh asynchronously (returns a Promise)
-			BABYLON.ImportMeshAsync(meshSource, scene).then(function (result) {
+			BABYLON.ImportMeshAsync(meshPath, scene).then(function (result) {
 				// After load succeeds, put the mesh reference in the correct slot of the array
 				if(result.meshes[0].name === "__root__" && result.meshes[0].getChildMeshes().length === 1) {
 					// Meshes from .glb files have an empty __root__ mesh as parent, with the actual mesh as a child
@@ -71,9 +81,8 @@ function createMeshButton(name, meshSource, meshOperations) {
 				}
 
 				if(typeof meshOperations !== "undefined") meshOperations(meshes[index]); // Apply given operations to mesh, if any
-				console.timeEnd("Loading " + name); // Stop timing (that also logs the time)
+				console.timeEnd("Loading " + meshName); // Stop timing (that also logs the time)
 				engine.hideLoadingUI(); // hide the load screen
-				menuButton.isVisible = true; // show menu button (after load only, or you can click it through the load screen which breaks everything)
 
 				// Mesh subdivision and octree creation to optimize picking
 				// Has to be done after the mesh operations !
@@ -90,28 +99,35 @@ function createMeshButton(name, meshSource, meshOperations) {
 					meshes[index].subdivide(1000);
 					meshes[index].createOrUpdateSubmeshesOctree(64);
 				}
-
-				// Show measurement tool button
-				MeasurementTool.showButton();
 			});
 		}
-	});
 
-	// Add the button to UI, return it so that its properties can be changed if needed
-	buttonPanel.addControl(button);
-	return button;
+		// Show measurement tool button and menu button
+		menuButton.isVisible = true;
+		MeasurementTool.showButton();
+
+		// Reactivate 3D Camera
+		camera2D.detachControl(canvas);
+		camera3D.attachControl(canvas, true);
+		scene.activeCamera = camera3D;
+    });
+
+	// Add the pin to UI, return it so that its properties can be changed if needed
+	mapAdvancedTexture.addControl(pin);
+	return pin;
 }
 
 var createScene = async function () {
 	// Creation of the scene
     var scene = new BABYLON.Scene(engine);
 
-	// For the menu
-	var camera2D = new BABYLON.UniversalCamera("camera2D", new BABYLON.Vector3(0, 0, -3), scene);
+	// For the map menu (2D view)
+	camera2D = new BABYLON.UniversalCamera("camera2D", new BABYLON.Vector3(0, 0, -3), scene);
 	camera2D.attachControl(canvas, true);
+	camera2D.inputs.attached.mouse.detachControl(); // Disable camera mouse controls to prevent camera rotations
 
 	// Arc Rotate Camera for looking at the meshes, which can be panned, zoomed and rotated
-	var camera3D = new BABYLON.ArcRotateCamera("camera",
+	camera3D = new BABYLON.ArcRotateCamera("camera",
 											BABYLON.Tools.ToRadians(90), // starts at longitudinal angle 90
 											BABYLON.Tools.ToRadians(90), // starts at latitudinal angle 90
 											12, // starts at a distance of 12 units
@@ -129,7 +145,7 @@ var createScene = async function () {
 	////////////////////////////
 
 	scene.doNotHandleCursors = true;
-	engine.getRenderingCanvas().style.cursor = "grab";
+	canvas.style.cursor = "grab";
 
 	var camera_min_z = -5;
 	var camera_max_z = -1;
@@ -141,50 +157,23 @@ var createScene = async function () {
     mapMaterial.disableLighting = true;
     mapMaterial.emissiveColor = BABYLON.Color3.White();
 
-    var mapPlane = BABYLON.MeshBuilder.CreatePlane("mapplane", {size: 1}, scene);
-    mapPlane.material = mapMaterial;
-    mapPlane.position.z = 0.01;
+    mapImagePlane = BABYLON.MeshBuilder.CreatePlane("mapplane", {size: 1}, scene);
+    mapImagePlane.material = mapMaterial;
+    mapImagePlane.position.z = 0.01;
 
-    var guiPlane = BABYLON.MeshBuilder.CreatePlane("guiplane", {size: 1}, scene);
+    mapGuiPlane = BABYLON.MeshBuilder.CreatePlane("guiplane", {size: 1}, scene);
 
-    const mapAdvancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(guiPlane, 1024, 1024);
-
-	const pin = new BABYLON.GUI.Ellipse();
-    pin.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
-    pin.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-
-    pin.width = "20px";
-    pin.height = "20px";
-    pin.color = "red";
-    pin.thickness = 2;
-    pin.background = "white";
-    pin.cornerRadius = 10;
-
-	pin.onPointerClickObservable.add(() => {
-        console.log("pin clicked");
-        alert("test");
-    });
-
-	var dragging = false;
-
-	// Change cursor style based on state related to the pin
-    pin.onPointerEnterObservable.add(() => canvas.style.cursor = "pointer");
-    pin.onPointerOutObservable.add(() => canvas.style.cursor = dragging ? "grabbing" : "grab");
-
-    mapAdvancedTexture.addControl(pin);
-
-    camera2D.inputs.attached.mouse.detachControl();
+    mapAdvancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(mapGuiPlane, 1024, 1024);
 
     //add pointer functionality
-    var mapPointerObserver = scene.onPointerObservable.add((e)=>onPointerMapDragDrop(e));
-	//mapPointerObserver.remove();
+	mapPointerObserver = scene.onPointerObservable.add((e)=>onPointerMapDragDrop(e));
     let mapCameraSpeed = 0.001;
 	var mapObserverPos, mapObserverLastPos;
     function onPointerMapDragDrop(pointerInfo){
   
         switch (pointerInfo.type) {
             case BABYLON.PointerEventTypes.POINTERDOWN:
-                dragging = true;
+                mapDragging = true;
 
                 // if clicking on the plane move the pin on a right click
                 if(pointerInfo.event.button == 2 && pointerInfo.pickInfo && pointerInfo.pickInfo.pickedPoint) {
@@ -198,14 +187,14 @@ var createScene = async function () {
                     engine.getRenderingCanvas().style.cursor = "grabbing";
 			break;
 			case BABYLON.PointerEventTypes.POINTERUP:
-                dragging = false;
+                mapDragging = false;
                 
                 // change cursor except if on a pin
                 if(engine.getRenderingCanvas().style.cursor != "pointer")
                     engine.getRenderingCanvas().style.cursor = "grab";
             break
             case BABYLON.PointerEventTypes.POINTERMOVE:
-                if(dragging){
+                if(mapDragging){
                     mapObserverPos = new BABYLON.Vector2(scene.pointerX,scene.pointerY);
                     let xdir = mapObserverLastPos.x-mapObserverPos.x;
                     let ydir = mapObserverLastPos.y-mapObserverPos.y;
@@ -302,10 +291,6 @@ var createScene = async function () {
 	// UI Base (all UI elements are children of this)
 	var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
-	// Creation of a Stack Panel to store the buttons for each mesh
-	buttonPanel = new BABYLON.GUI.StackPanel("Button Container");
-	advancedTexture.addControl(buttonPanel); // add to UI
-
 	////////////////////////////////////////////////////////////////////////////////////
 
 	// Creation of the buttons for each fountain mesh
@@ -318,13 +303,15 @@ var createScene = async function () {
 	//createMeshButton("Fountain Light", "./meshes/fountainLight.glb");
 	//createMeshButton("Fountain Downscaled", "./meshes/fountainDownscaled.glb");
 	//createMeshButton("Morosini Fountain", "./meshes/fountainLightDownscaled.glb");
-	createMeshButton("Morosini Fountain", "./meshes/test2.glb");
+	//createMeshButton("Morosini Fountain", "./meshes/test2.glb");
+	createPin("cube", 0.5, 0.5);
+	createPin("Morosini", 0.2, 0.7);
 
 	/////////////////////////
 	//  Karydaki Fountain  //
 	/////////////////////////
 
-	createMeshButton("Karydaki", "./meshes/Re-karydaki.glb");
+	//createMeshButton("Karydaki", "./meshes/Re-karydaki.glb");
 
 	//////////////
 	// Monstree //
@@ -333,12 +320,12 @@ var createScene = async function () {
 	//createMeshButton("Monstree GS Original", "./meshes/monstree.ply");
 	//createMeshButton("Monstree GS Clean", "./meshes/monstree_cleaned.ply");
 	//createMeshButton("Monstree GS Compressed", "./meshes/monstree_cleaned_compressed.ply");
-	createMeshButton("Monstree GS .splat", "./meshes/monstree.splat");
+	//createMeshButton("Monstree GS .splat", "./meshes/monstree.splat");
 
 	// For Monstree, move the mesh after load, because it is not centered
-	createMeshButton("Monstree", "./meshes/monstree.glb", (mesh) => {
+	/*createMeshButton("Monstree", "./meshes/monstree.glb", (mesh) => {
 		mesh.position = new BABYLON.Vector3(0.5,-1.5,2);
-	});
+	});*/
 
 	////////////////////////////////////////////////////////////////////////////////////
 
@@ -359,16 +346,31 @@ var createScene = async function () {
 
 	// On Click behaviour for the menu button
 	menuButton.onPointerUpObservable.add(() => {
-		// Make menu visible and hide menu button
-		buttonPanel.isVisible = true;
+		// Reenable the map
+		mapGuiPlane.setEnabled(true);
+		mapImagePlane.setEnabled(true);
+
+		// Go back to manual handling of mouse cursor for map view
+		scene.doNotHandleCursors = true;
+		canvas.style.cursor = "grab";
+
+		// Reenable drag and drop
+		mapDragging = false;
+		mapPointerObserver = scene.onPointerObservable.add((e)=>onPointerMapDragDrop(e));
+
+		// Hide 3D view UI and disable measurements
 		menuButton.isVisible = false;
 		MeasurementTool.hideButton();
-
-		// Disable measurement tool
 		MeasurementTool.disable();
 
 		// Disable current mesh (makes it invisible and improves performance)
 		meshes[activeMeshIndex].setEnabled(false);
+
+		// Reactivate 2D Camera
+		camera3D.detachControl(canvas);
+		camera2D.attachControl(canvas, true);
+		camera2D.inputs.attached.mouse.detachControl();
+		scene.activeCamera = camera2D;
 	});
 
 	// Add menu button to the UI and make it invisible
