@@ -51,7 +51,7 @@ function createMeshButton(name, meshSource, meshOperations) {
 		} else {
 			// If mesh isn't loaded, load it.
 			// Load time is measured by console.time() and timeEnd()
-			// The BabylonJS loading UI is shown during load (it can and will be configured)
+			// The BabylonJS loading UI is shown during load (it can be configured)
 			
 			// Start timing and show load screen
 			console.time("Loading " + name);
@@ -106,19 +106,133 @@ var createScene = async function () {
 	// Creation of the scene
     var scene = new BABYLON.Scene(engine);
 
-	// Arc Rotate Camera, which can be panned, zoomed and rotated
-	var camera = new BABYLON.ArcRotateCamera("camera",
+	// For the menu
+	var camera2D = new BABYLON.UniversalCamera("camera2D", new BABYLON.Vector3(0, 0, -3), scene);
+	camera2D.attachControl(canvas, true);
+
+	// Arc Rotate Camera for looking at the meshes, which can be panned, zoomed and rotated
+	var camera3D = new BABYLON.ArcRotateCamera("camera",
 											BABYLON.Tools.ToRadians(90), // starts at longitudinal angle 90
 											BABYLON.Tools.ToRadians(90), // starts at latitudinal angle 90
 											12, // starts at a distance of 12 units
 											BABYLON.Vector3.Zero(), // initial pivot is the origin
 											scene);
 		//camera.wheelDeltaPercentage = 0.02; // slows down zooming. Has issues. wheelPrecision is better.
-		camera.wheelPrecision = 50; // slows down the zooming (mouse wheel) by a factor of 50
-		camera.attachControl(canvas, true);
+		camera3D.wheelPrecision = 50; // slows down the zooming (mouse wheel) by a factor of 50
+		//camera3D.attachControl(canvas, true);
 
 	// Basic light source, shining down
     var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
+
+	////////////////////////////
+	// Map Menu Configuration //
+	////////////////////////////
+
+	scene.doNotHandleCursors = true;
+	engine.getRenderingCanvas().style.cursor = "grab";
+
+	var camera_min_z = -5;
+	var camera_max_z = -1;
+    var zoom_speed = 0.005;
+
+	var mapTexture = new BABYLON.Texture("https://www.babylonjs.com/assets/logo-babylonjs-social-twitter.png", scene);
+    var mapMaterial = new BABYLON.StandardMaterial("mapmaterial", scene);
+    mapMaterial.diffuseTexture = mapTexture;
+    mapMaterial.disableLighting = true;
+    mapMaterial.emissiveColor = BABYLON.Color3.White();
+
+    var mapPlane = BABYLON.MeshBuilder.CreatePlane("mapplane", {size: 1}, scene);
+    mapPlane.material = mapMaterial;
+    mapPlane.position.z = 0.01;
+
+    var guiPlane = BABYLON.MeshBuilder.CreatePlane("guiplane", {size: 1}, scene);
+
+    const mapAdvancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(guiPlane, 1024, 1024);
+
+	const pin = new BABYLON.GUI.Ellipse();
+    pin.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    pin.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+
+    pin.width = "20px";
+    pin.height = "20px";
+    pin.color = "red";
+    pin.thickness = 2;
+    pin.background = "white";
+    pin.cornerRadius = 10;
+
+	pin.onPointerClickObservable.add(() => {
+        console.log("pin clicked");
+        alert("test");
+    });
+
+	var dragging = false;
+
+	// Change cursor style based on state related to the pin
+    pin.onPointerEnterObservable.add(() => canvas.style.cursor = "pointer");
+    pin.onPointerOutObservable.add(() => canvas.style.cursor = dragging ? "grabbing" : "grab");
+
+    mapAdvancedTexture.addControl(pin);
+
+    camera2D.inputs.attached.mouse.detachControl();
+
+    //add pointer functionality
+    var mapPointerObserver = scene.onPointerObservable.add((e)=>onPointerMapDragDrop(e));
+	//mapPointerObserver.remove();
+    let mapCameraSpeed = 0.001;
+	var mapObserverPos, mapObserverLastPos;
+    function onPointerMapDragDrop(pointerInfo){
+  
+        switch (pointerInfo.type) {
+            case BABYLON.PointerEventTypes.POINTERDOWN:
+                dragging = true;
+
+                // if clicking on the plane move the pin on a right click
+                if(pointerInfo.event.button == 2 && pointerInfo.pickInfo && pointerInfo.pickInfo.pickedPoint) {
+                    let uv = pointerInfo.pickInfo.getTextureCoordinates();
+                    pin.left = (uv.x - 0.5) * 100 + "%";
+                    pin.top = (0.5 - uv.y) * 100 + "%";
+                }
+
+                // change cursor except if on a pin
+                if(engine.getRenderingCanvas().style.cursor != "pointer")
+                    engine.getRenderingCanvas().style.cursor = "grabbing";
+			break;
+			case BABYLON.PointerEventTypes.POINTERUP:
+                dragging = false;
+                
+                // change cursor except if on a pin
+                if(engine.getRenderingCanvas().style.cursor != "pointer")
+                    engine.getRenderingCanvas().style.cursor = "grab";
+            break
+            case BABYLON.PointerEventTypes.POINTERMOVE:
+                if(dragging){
+                    mapObserverPos = new BABYLON.Vector2(scene.pointerX,scene.pointerY);
+                    let xdir = mapObserverLastPos.x-mapObserverPos.x;
+                    let ydir = mapObserverLastPos.y-mapObserverPos.y;
+                    mapCameraSpeed = 0.001*-camera2D.position.z
+                    camera2D._localDirection.copyFromFloats(mapCameraSpeed*xdir, mapCameraSpeed*-ydir, 0);
+                    camera2D.getViewMatrix().invertToRef(camera2D._cameraTransformMatrix);
+                    BABYLON.Vector3.TransformNormalToRef(camera2D._localDirection, camera2D._cameraTransformMatrix, camera2D._transformedDirection);
+                    camera2D.position.addInPlace(camera2D._transformedDirection);
+                    
+                    
+                }
+            break
+            case BABYLON.PointerEventTypes.POINTERWHEEL:
+                
+                camera2D._localDirection.copyFromFloats(0, 0, -pointerInfo.event.deltaY*zoom_speed);
+                camera2D.getViewMatrix().invertToRef(camera2D._cameraTransformMatrix);
+                BABYLON.Vector3.TransformNormalToRef(camera2D._localDirection, camera2D._cameraTransformMatrix, camera2D._transformedDirection);
+                camera2D.position.addInPlace(camera2D._transformedDirection);
+                if(camera2D.position.z>camera_max_z){
+                       camera2D.position.z=camera_max_z
+                }else if(camera2D.position.z<camera_min_z){
+                    camera2D.position.z=camera_min_z
+                }
+            break
+        }
+        mapObserverLastPos = new BABYLON.Vector2(scene.pointerX,scene.pointerY)
+    }
 
 	/////////////////////////
 	// WebXR Configuration //
