@@ -120,6 +120,67 @@ var createScene = async function () {
 	// Basic light source, shining down
     var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
 
+	/////////////////////////
+	// WebXR Configuration //
+	/////////////////////////
+/*
+	// Initializes WebXR in VR (immersive-vr mode)
+	const xrHelper = await scene.createDefaultXRExperienceAsync({
+		disableTeleportation: true, // Disable teleportation so we can use movement
+	});
+
+	const xrCamera = xrHelper.baseExperience.camera;
+
+	const featureManager = xrHelper.baseExperience.featuresManager;
+
+	var cameraYMovement = 0;
+
+	// Swaps the configuration for the two hands, making it so that left is movement and right is rotation
+	const swappedHandednessConfiguration = [
+		{
+			// Right stick configuration
+			allowedComponentTypes: [BABYLON.WebXRControllerComponent.THUMBSTICK_TYPE, BABYLON.WebXRControllerComponent.TOUCHPAD_TYPE],
+			forceHandedness: "right",
+			axisChangedHandler: (axes, movementState, featureContext, xrInput) => {
+				// Apply axes to rotation if above threshold
+				movementState.rotateX = Math.abs(axes.x) > featureContext.rotationThreshold ? axes.x : 0;
+				//movementState.rotateY = Math.abs(axes.y) > featureContext.rotationThreshold ? axes.y : 0; // disable? does not seem to work anyways
+				cameraYMovement = Math.abs(axes.y) > featureContext.rotationThreshold ? -axes.y : 0;
+			},
+		},
+		{
+			// Left stick configuration
+			allowedComponentTypes: [BABYLON.WebXRControllerComponent.THUMBSTICK_TYPE, BABYLON.WebXRControllerComponent.TOUCHPAD_TYPE],
+			forceHandedness: "left",
+			axisChangedHandler: (axes, movementState, featureContext, xrInput) => {
+				// Apply axes to movement if above threshold
+				movementState.moveX = Math.abs(axes.x) > featureContext.movementThreshold ? axes.x : 0;
+				movementState.moveY = Math.abs(axes.y) > featureContext.movementThreshold ? axes.y : 0;
+			},
+		},
+	];
+
+	const movementFeature = featureManager.enableFeature(BABYLON.WebXRFeatureName.MOVEMENT, "latest", {
+		xrInput: xrHelper.input,
+		movementSpeed: 0.1,
+		rotationSpeed: 0.4,
+		customRegistrationConfigurations: swappedHandednessConfiguration,
+	});
+
+	// Camera Y Movement each frame based on the right stick vertical axis
+	scene.onBeforeRenderObservable.add(() => {
+		if(!xrCamera || !movementFeature) return;
+
+		if(cameraYMovement != 0) {
+			// Inspired by internal BabylonJS code for the movement feature
+			let yMovement = new BABYLON.Vector3(0, cameraYMovement, 0);
+			yMovement.scaleInPlace(xrCamera._computeLocalCameraSpeed() * movementFeature.movementSpeed);
+			xrCamera.cameraDirection.addInPlace(yMovement);
+		}
+	});
+
+	*/
+
 	///////////////////
 	// UI of the app //
 	///////////////////
@@ -142,7 +203,8 @@ var createScene = async function () {
 	//createMeshButton("Fountain", "./meshes/fountain.glb");
 	//createMeshButton("Fountain Light", "./meshes/fountainLight.glb");
 	//createMeshButton("Fountain Downscaled", "./meshes/fountainDownscaled.glb");
-	createMeshButton("Morosini Fountain", "./meshes/fountainLightDownscaled.glb");
+	//createMeshButton("Morosini Fountain", "./meshes/fountainLightDownscaled.glb");
+	createMeshButton("Morosini Fountain", "./meshes/test2.glb");
 
 	/////////////////////////
 	//  Karydaki Fountain  //
@@ -157,7 +219,7 @@ var createScene = async function () {
 	//createMeshButton("Monstree GS Original", "./meshes/monstree.ply");
 	//createMeshButton("Monstree GS Clean", "./meshes/monstree_cleaned.ply");
 	//createMeshButton("Monstree GS Compressed", "./meshes/monstree_cleaned_compressed.ply");
-	//createMeshButton("Monstree GS .splat", "./meshes/monstree.splat");
+	createMeshButton("Monstree GS .splat", "./meshes/monstree.splat");
 
 	// For Monstree, move the mesh after load, because it is not centered
 	createMeshButton("Monstree", "./meshes/monstree.glb", (mesh) => {
@@ -206,7 +268,7 @@ var createScene = async function () {
 
 	// Allows access to the debug mode of BabylonJS, including an inspector.
 	// Convenient for debugging.
-	//scene.debugLayer.show();
+	// scene.debugLayer.show();
 	
     return scene;
 };
