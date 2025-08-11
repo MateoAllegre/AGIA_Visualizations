@@ -16,8 +16,9 @@ var menuButton; // Menu button, needs to be global so that all buttons can enabl
 var mapAdvancedTexture; // Advanced Texture (=GUI) on the map, containing the pins for each model
 var mapPointerObserver; // Handles DragDrop on map screen, global so that it can be disabled in 3D view
 var mapImagePlane, mapGuiPlane; // Planes for the map on the map screen, disabled on 3D view
-var mapDragging = false; // Boolean answering the question: am I currently dragging on the map screen?
+var mapDragging = false; // Boolean indicating if click is being held on the map screen (ie whether you are dragging)
 var camera2D, camera3D; // Babylon Cameras for the map screen (2D) and mesh screen (3D)
+var performanceMode = false; // Indicates if lighter versions of the meshes should be used (for lower end computers)
 
 import MeasurementTool from "./measurementTool.js";
 
@@ -27,6 +28,8 @@ function createPin(meshName, uvx, uvy, meshOperations) {
 	// Allocates a space in the array to store the mesh in, once it's loaded (after button click)
 	let index = meshes.length;
 	meshes.push(null);
+
+	// TODO change the pin to a real pin
 
 	var pin = new BABYLON.GUI.Ellipse();
     pin.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
@@ -66,7 +69,10 @@ function createPin(meshName, uvx, uvy, meshOperations) {
 			console.log("Start loading of " + meshName);
 			engine.displayLoadingUI();
 
-			let meshPath = "./meshes/" + meshName + ".glb"; // todo: add Light at the end if necessary
+			// Derive mesh path from the mesh name and performance mode
+			let meshPath = "./meshes/" + meshName;
+			if (performanceMode) meshPath += "Light";
+			meshPath += ".glb";
 			
 			// Load the actual mesh asynchronously (returns a Promise)
 			BABYLON.ImportMeshAsync(meshPath, scene).then(function (result) {
@@ -138,7 +144,7 @@ var createScene = async function () {
 		//camera3D.attachControl(canvas, true);
 
 	// Basic light source, shining down
-    var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
+    var light = new BABYLON.HemisphericLight("lightSource", new BABYLON.Vector3(0, 1, 0), scene);
 
 	////////////////////////////
 	// Map Menu Configuration //
@@ -151,36 +157,58 @@ var createScene = async function () {
 	var camera_max_z = -1;
     var zoom_speed = 0.005;
 
-	var mapTexture = new BABYLON.Texture("https://www.babylonjs.com/assets/logo-babylonjs-social-twitter.png", scene);
+	var mapTexture = new BABYLON.Texture("./gui/map.png", scene);
     var mapMaterial = new BABYLON.StandardMaterial("mapmaterial", scene);
     mapMaterial.diffuseTexture = mapTexture;
     mapMaterial.disableLighting = true;
     mapMaterial.emissiveColor = BABYLON.Color3.White();
 
+	// Plane to hold the map texture
     mapImagePlane = BABYLON.MeshBuilder.CreatePlane("mapplane", {size: 1}, scene);
     mapImagePlane.material = mapMaterial;
-    mapImagePlane.position.z = 0.01;
+    mapImagePlane.position.z = 0.01; // Slightly behind the origin to avoid Z-fighting with the UI
 
+	// Putting an Advanced Dynamic Texture (= UI) on a mesh removes its textures, if any, so we need two separate planes to hold the map texture and the UI. This one will hold the UI.
     mapGuiPlane = BABYLON.MeshBuilder.CreatePlane("guiplane", {size: 1}, scene);
 
-    mapAdvancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(mapGuiPlane, 1024, 1024);
+	// We need to wait for the texture to load so that we know its dimensions, in order to rescale the planes and setup the UI
+	mapTexture.onLoadObservable.add(() => {
+		// Get the dimensions of the image (only possible when load is over)
+		let w = mapTexture.getSize().width;
+		let h = mapTexture.getSize().height;
+		
+		// Calculate "normalized" size: the smallest dimension is 1 and the other is chosen to keep the ratio (e.g. a 600x400 image will have an xsize of 1.5 and ysize of 1)
+		// Those are used for the dimensions of the planes
+		let xsize = w > h ? w/h : 1;
+		let ysize = w > h ? 1 : h/w;
+
+		// Rescale the planes
+		mapImagePlane.scaling = new BABYLON.Vector3(xsize, ysize, 1);
+		mapGuiPlane.scaling = new BABYLON.Vector3(xsize, ysize, 1);
+
+		// Create an ADT to hold the UI of the map, linked to the mesh
+		// Its dimensions are proportional to the image to avoid stretching the UI, the 1024 factor is here to maintain consistent scaling no matter the image size (thanks to the normalization)
+		// (Just using the image size as the dimensions, for example, would make the UI look bigger on smaller images)
+		mapAdvancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(mapGuiPlane, 1024*xsize, 1024*ysize);
+
+		// The pins need to be created after the advanced texture is created, because they attach to it
+		createPin("Karydaki", 0.263, 0.107);
+		createPin("Morosini", 0.223, 0.979);
+	});
 
     //add pointer functionality
 	mapPointerObserver = scene.onPointerObservable.add((e)=>onPointerMapDragDrop(e));
     let mapCameraSpeed = 0.001;
 	var mapObserverPos, mapObserverLastPos;
-    function onPointerMapDragDrop(pointerInfo){
+
+    function onPointerMapDragDrop(pointerInfo) {
   
         switch (pointerInfo.type) {
             case BABYLON.PointerEventTypes.POINTERDOWN:
                 mapDragging = true;
 
-                // if clicking on the plane move the pin on a right click
-                if(pointerInfo.event.button == 2 && pointerInfo.pickInfo && pointerInfo.pickInfo.pickedPoint) {
-                    let uv = pointerInfo.pickInfo.getTextureCoordinates();
-                    pin.left = (uv.x - 0.5) * 100 + "%";
-                    pin.top = (0.5 - uv.y) * 100 + "%";
-                }
+                let uv = pointerInfo.pickInfo.getTextureCoordinates();
+				console.log(uv);
 
                 // change cursor except if on a pin
                 if(engine.getRenderingCanvas().style.cursor != "pointer")
@@ -192,7 +220,7 @@ var createScene = async function () {
                 // change cursor except if on a pin
                 if(engine.getRenderingCanvas().style.cursor != "pointer")
                     engine.getRenderingCanvas().style.cursor = "grab";
-            break
+            break;
             case BABYLON.PointerEventTypes.POINTERMOVE:
                 if(mapDragging){
                     mapObserverPos = new BABYLON.Vector2(scene.pointerX,scene.pointerY);
@@ -203,22 +231,18 @@ var createScene = async function () {
                     camera2D.getViewMatrix().invertToRef(camera2D._cameraTransformMatrix);
                     BABYLON.Vector3.TransformNormalToRef(camera2D._localDirection, camera2D._cameraTransformMatrix, camera2D._transformedDirection);
                     camera2D.position.addInPlace(camera2D._transformedDirection);
-                    
-                    
                 }
-            break
+            break;
             case BABYLON.PointerEventTypes.POINTERWHEEL:
-                
                 camera2D._localDirection.copyFromFloats(0, 0, -pointerInfo.event.deltaY*zoom_speed);
                 camera2D.getViewMatrix().invertToRef(camera2D._cameraTransformMatrix);
                 BABYLON.Vector3.TransformNormalToRef(camera2D._localDirection, camera2D._cameraTransformMatrix, camera2D._transformedDirection);
                 camera2D.position.addInPlace(camera2D._transformedDirection);
-                if(camera2D.position.z>camera_max_z){
-                       camera2D.position.z=camera_max_z
-                }else if(camera2D.position.z<camera_min_z){
-                    camera2D.position.z=camera_min_z
-                }
-            break
+                if(camera2D.position.z>camera_max_z)
+                    camera2D.position.z=camera_max_z;
+                else if(camera2D.position.z<camera_min_z)
+                    camera2D.position.z=camera_min_z;
+            break;
         }
         mapObserverLastPos = new BABYLON.Vector2(scene.pointerX,scene.pointerY)
     }
@@ -288,46 +312,8 @@ var createScene = async function () {
 	// UI of the app //
 	///////////////////
 
-	// UI Base (all UI elements are children of this)
+	// UI Base (all UI elements are children of this, except the ones tied to the map since those need to be attached to the mesh with the map texture)
 	var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
-
-	////////////////////////////////////////////////////////////////////////////////////
-
-	// Creation of the buttons for each fountain mesh
-
-	///////////////////////
-	// Morosini Fountain //
-	///////////////////////
-
-	//createMeshButton("Fountain", "./meshes/fountain.glb");
-	//createMeshButton("Fountain Light", "./meshes/fountainLight.glb");
-	//createMeshButton("Fountain Downscaled", "./meshes/fountainDownscaled.glb");
-	//createMeshButton("Morosini Fountain", "./meshes/fountainLightDownscaled.glb");
-	//createMeshButton("Morosini Fountain", "./meshes/test2.glb");
-	createPin("cube", 0.5, 0.5);
-	createPin("Morosini", 0.2, 0.7);
-
-	/////////////////////////
-	//  Karydaki Fountain  //
-	/////////////////////////
-
-	//createMeshButton("Karydaki", "./meshes/Re-karydaki.glb");
-
-	//////////////
-	// Monstree //
-	//////////////
-
-	//createMeshButton("Monstree GS Original", "./meshes/monstree.ply");
-	//createMeshButton("Monstree GS Clean", "./meshes/monstree_cleaned.ply");
-	//createMeshButton("Monstree GS Compressed", "./meshes/monstree_cleaned_compressed.ply");
-	//createMeshButton("Monstree GS .splat", "./meshes/monstree.splat");
-
-	// For Monstree, move the mesh after load, because it is not centered
-	/*createMeshButton("Monstree", "./meshes/monstree.glb", (mesh) => {
-		mesh.position = new BABYLON.Vector3(0.5,-1.5,2);
-	});*/
-
-	////////////////////////////////////////////////////////////////////////////////////
 
 	// UI Elements
 
