@@ -130,7 +130,9 @@ var createScene = async function () {
 	// For the map menu (2D view)
 	camera2D = new BABYLON.UniversalCamera("camera2D", new BABYLON.Vector3(0, 0, -3), scene);
 	camera2D.attachControl(canvas, true);
-	camera2D.inputs.attached.mouse.detachControl(); // Disable camera mouse controls to prevent camera rotations
+	// Disable mouse and keyboard mouse controls to prevent camera rotations and movement
+	camera2D.inputs.attached.mouse.detachControl();
+	camera2D.inputs.attached.keyboard.detachControl(); 
 
 	// Arc Rotate Camera for looking at the meshes, which can be panned, zoomed and rotated
 	camera3D = new BABYLON.ArcRotateCamera("camera",
@@ -356,6 +358,7 @@ var createScene = async function () {
 		camera3D.detachControl(canvas);
 		camera2D.attachControl(canvas, true);
 		camera2D.inputs.attached.mouse.detachControl();
+		camera2D.inputs.attached.keyboard.detachControl();
 		scene.activeCamera = camera2D;
 	});
 
