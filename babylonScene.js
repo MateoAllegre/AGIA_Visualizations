@@ -13,12 +13,13 @@ var meshes = []; // List of currently loaded meshes
 var activeMeshIndex; // Index (in meshes array) of most recently rendered mesh
 
 var menuButton; // Menu button, needs to be global so that all buttons can enable it on click.
+var performanceModeCheckbox; // Toggles performance mode, global so it can be disabled when loading a model
 var mapAdvancedTexture; // Advanced Texture (=GUI) on the map, containing the pins for each model
 var mapPointerObserver; // Handles DragDrop on map screen, global so that it can be disabled in 3D view
 var mapImagePlane, mapGuiPlane; // Planes for the map on the map screen, disabled on 3D view
-var mapDragging = false; // Boolean indicating if click is being held on the map screen (ie whether you are dragging)
+var mapDragging = false; // Boolean indicating if click is being held on the map screen (i.e. whether you are dragging)
 var camera2D, camera3D; // Babylon Cameras for the map screen (2D) and mesh screen (3D)
-var performanceMode = false; // Indicates if lighter versions of the meshes should be used (for lower end computers)
+var performanceMode = true; // Indicates if lighter versions of the meshes should be used (for lower end computers)
 
 import MeasurementTool from "./measurementTool.js";
 
@@ -28,32 +29,35 @@ function createPin(meshName, uvx, uvy, meshOperations) {
 	// Allocates a space in the array to store the mesh in, once it's loaded (after button click)
 	let index = meshes.length;
 	meshes.push(null);
-
-	// TODO change the pin to a real pin
-
-	var pin = new BABYLON.GUI.Ellipse();
+	
+	var pin = new BABYLON.GUI.Image(undefined, "gui/pin.png");
     pin.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
     pin.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
 
-    pin.width = "20px";
-    pin.height = "20px";
-    pin.color = "red";
-    pin.thickness = 2;
-    pin.background = "white";
-    pin.cornerRadius = 10;
-	pin.left = (uvx - 0.5) * 100 + "%";
-    pin.top = (0.5 - uvy) * 100 + "%";
+    pin.width = "80px";
+    pin.height = "80px";
 
+	pin.left = (uvx - 0.5) * 100 + "%";
+	pin.top = (0.5 - uvy) * 100 + "%";
+
+	// When pin is loaded, move it up by half its height so that the tip is at the specified point
+	pin.onImageLoadedObservable.add(() => {
+		pin.topInPixels -= pin.heightInPixels / 2;
+	});
+	
 	// Change cursor style based on state related to the pin
     pin.onPointerEnterObservable.add(() => canvas.style.cursor = "pointer");
     pin.onPointerOutObservable.add(() => canvas.style.cursor = mapDragging ? "grabbing" : "grab");
 
 	pin.onPointerClickObservable.add(() => {
+		// Hide the map screen, disable map input and cursor handling, disable performance mode button
         mapImagePlane.setEnabled(false);
         mapGuiPlane.setEnabled(false);
 		mapPointerObserver.remove();
 		scene.doNotHandleCursors = false;
 		canvas.style.cursor = "default";
+		performanceModeCheckbox.isVisible = false;
+
 		activeMeshIndex = index;
 
 		if(meshes[index] != null) {
@@ -95,7 +99,7 @@ function createPin(meshName, uvx, uvy, meshOperations) {
 				if(meshes[index].getChildMeshes().length > 0) {
 					// Create a maximum of 1000 total submeshes uniformly split between the children
 					let nbSub = 1000 / meshes[index].getChildMeshes().length;
-					console.log(nbSub);
+					//console.log(nbSub);
 					meshes[index].getChildMeshes().forEach(child => {
 						child.subdivide(Math.floor(nbSub));
 						child.createOrUpdateSubmeshesOctree(64);
@@ -196,7 +200,7 @@ var createScene = async function () {
 
 		// The pins need to be created after the advanced texture is created, because they attach to it
 		createPin("Karydaki", 0.263, 0.107);
-		createPin("Morosini", 0.223, 0.979);
+		createPin("Morosini", 0.154, 0.949);
 	});
 
     //add pointer functionality
@@ -318,6 +322,24 @@ var createScene = async function () {
 	// UI Base (all UI elements are children of this, except the ones tied to the map since those need to be attached to the mesh with the map texture)
 	var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
+	// Checkbox to toggle performance mode
+	performanceModeCheckbox = BABYLON.GUI.Checkbox.AddCheckBoxWithHeader("Performance mode", (value) => {
+		performanceMode = value;
+		// Clears all currently cached meshes
+		for(let index = 0; index < meshes.length; ++index) {
+			if(meshes[index] != null) {
+				meshes[index].dispose();
+				meshes[index] = null;
+			}
+		}
+	});
+	performanceModeCheckbox.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+	performanceModeCheckbox.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+	performanceModeCheckbox.left = "20px";
+	performanceModeCheckbox.top = "20px";
+	performanceModeCheckbox.children[0].isChecked = true; // Start enabled
+	advancedTexture.addControl(performanceModeCheckbox);
+
 	// UI Elements
 
 	// Menu button configuration
@@ -338,6 +360,9 @@ var createScene = async function () {
 		// Reenable the map
 		mapGuiPlane.setEnabled(true);
 		mapImagePlane.setEnabled(true);
+
+		// Reenable performance mode checkbox
+		performanceModeCheckbox.isVisible = true;
 
 		// Go back to manual handling of mouse cursor for map view
 		scene.doNotHandleCursors = true;
