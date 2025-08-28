@@ -1,7 +1,7 @@
 # 3D models and highres textures (because LFS bandwidth is limited)
 # *.obj
 # *.mtl
- *.glb
+# *.glb
 # *.gltf
 # *.exr
 # *.ply
