@@ -20,3 +20,4 @@
 # Notes
 *.txt
 !commandes.txt
+!process.txt

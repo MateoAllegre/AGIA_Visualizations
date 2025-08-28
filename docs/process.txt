@@ -1,0 +1,12 @@
+Export as .glb, LOD 50% (otherwise too heavy for Blender, just crashes on import)
+Open a new General Blender scene, delete everything (A X Enter)
+Import the .glb
+Rotate it -90° along the x axis (R X -90 Enter)
+Center the object: F3 > Origin to Geometry, then clear the transform with Alt-G
+Save the .blend
+Export the "bigger" version by going Export > .glb (Activate Compression)
+(Optional): If some parts of the model need to be preserved, select them, Invert selection and create a Vertex Group
+Apply a Decimate modifier (on the V.G. defined in previous step if any, or on the full model), decimate by 0.5
+Export again, make sure to check "Apply Modifiers" and uncheck Compression
+The model needs to be under about 200MB. Adjust decimation factor and re-export if needed.
+Once satisfied with the uncompressed filesize, re-export with compression. The result is the light version.
