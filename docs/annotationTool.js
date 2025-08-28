@@ -4,6 +4,9 @@
  * The information is added to a certain point of the mesh *
  ***********************************************************/
 
+// NOT FINISHED, MOSTLY JUST CODE TAKEN FROM THE MEASUREMENT TOOL AND MODIFIED FOR
+// AN EVENTUAL MEASUREMENT TOOL
+
 const AnnotationTool = (function () {
     var scene; // BabylonJS scene, required to process mouse inputs, for example
     var atObserver; // Pointer observer for the annotation tool

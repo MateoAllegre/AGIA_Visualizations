@@ -4,6 +4,9 @@
  * x                *
  ********************/
 
+// GENERIC SAMPLE TOOL MODULE TO CREATE A TOOL THAT WORKS WHEN CLICKING A MESH
+// BASED ON THE MEASUREMENT TOOL
+
 const xTool = (function () {
     var scene; // BabylonJS scene, required to process mouse inputs, for example
     var xtObserver; // Pointer observer for the x tool
