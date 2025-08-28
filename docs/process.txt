@@ -1,12 +1,27 @@
-Export as .glb, LOD 50% (otherwise too heavy for Blender, just crashes on import)
+Export as .glb, LOD 50% (otherwise could be too heavy for Blender, just crashes on import)
+	Reality Capture, in the toolbar "Export" in "3. Output"
+	In Filter, put "glb" and choose the red one (Dense Mesh as a Level-Of-Detail set)
+	Choose an export location
+	Level of detail options: Model Count: 1, Relative simplification percentage: 50, Maximal triangles: 10000000 (should automatically go down to the actual number of triangles in the scene)
+	Texture options: Export Textures: Yes, Source layer: Color layer, Texel size: 2x optimal [switch to Optimal if textures get downscaled too much, or 4x Optimal if textures are really heavy], format: JPEG
 Open a new General Blender scene, delete everything (A X Enter)
 Import the .glb
-Rotate it -90° along the x axis (R X -90 Enter)
+Rotate it -90° along the x axis (select it then press R X -90 Enter)
 Center the object: F3 > Origin to Geometry, then clear the transform with Alt-G
 Save the .blend
-Export the "bigger" version by going Export > .glb (Activate Compression)
+Export the "bigger" version by going Export > .glb (Activate Compression in Geometry, change Format to glTF Binary (.glb))
 (Optional): If some parts of the model need to be preserved, select them, Invert selection and create a Vertex Group
-Apply a Decimate modifier (on the V.G. defined in previous step if any, or on the full model), decimate by 0.5
-Export again, make sure to check "Apply Modifiers" and uncheck Compression
+Apply a Decimate modifier (on the V.G. defined in previous step if any, or on the full model), decimate by around 0.4
+Export again, make sure to check "Apply Modifiers" and uncheck Compression in Geometry
 The model needs to be under about 200MB. Adjust decimation factor and re-export if needed.
-Once satisfied with the uncompressed filesize, re-export with compression. The result is the light version.
+Once satisfied with the uncompressed filesize, re-export with compression enabled. The result is the light version.
+
+ADDING THE MODEL ON THE WEBSITE
+
+Once you have two models, named "XXX.glb" and "XXXLight.glb", put them in the meshes/ directory
+
+Load the website, click on where the model should go on the map, open the dev console to read UV coords
+
+In the mapTexture.onLoadObservable (around line 200), add a createPin line:
+createPin("XXX", xcoord, ycoord);
+by replacing XXX with the name of the model and the coords with the values from the dev console (three sigfigs should be enough)

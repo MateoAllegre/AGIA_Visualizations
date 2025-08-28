@@ -198,9 +198,15 @@ var createScene = async function () {
 		// (Just using the image size as the dimensions, for example, would make the UI look bigger on smaller images)
 		mapAdvancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(mapGuiPlane, 1024*xsize, 1024*ysize);
 
+		/////// LIST OF MODELS AND THEIR LOCATION ON THE MAP
+
 		// The pins need to be created after the advanced texture is created, because they attach to it
 		createPin("Karydaki", 0.263, 0.107);
-		createPin("Morosini", 0.154, 0.949);
+		createPin("Morosini", 0.399, 0.951);
+		createPin("Caronissi", 0.222, 0.596);
+		createPin("Silamos", 0.268, 0.268);
+		createPin("Spilia", 0.422, 0.485);
+		createPin("Bembo", 0.335, 0.951);
 	});
 
     //add pointer functionality

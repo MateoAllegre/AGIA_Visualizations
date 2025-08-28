@@ -1,13 +1,11 @@
 # 3D models and highres textures (because LFS bandwidth is limited)
-*.obj
-*.mtl
-*.glb
-*.gltf
-*.exr
-*.ply
-*.splat
-
-!cube.glb
+# *.obj
+# *.mtl
+# *.glb
+# *.gltf
+# *.exr
+# *.ply
+# *.splat
 
 # Declaration files for Babylon
 *.d.ts
